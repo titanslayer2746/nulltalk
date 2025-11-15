@@ -65,8 +65,8 @@ export default function ConfessionTest() {
         const response = await fetch("/api/votes");
         if (response.ok) {
           const data = await response.json();
-          const votedConfessionIds = new Set(
-            data.votes?.map((v: { confessionId: string }) => v.confessionId) || []
+          const votedConfessionIds = new Set<string>(
+            (data.votes?.map((v: { confessionId: string }) => v.confessionId) || []) as string[]
           );
           setVotedIds(votedConfessionIds);
           // Also add to swiped IDs so they don't show up
