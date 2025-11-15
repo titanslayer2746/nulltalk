@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Dialog from "../components/Dialog";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const ADMIN_KEY_STORAGE = "admin_access_key";
 
@@ -43,6 +45,33 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  
+  // Dialog states
+  const [dialog, setDialog] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "info" | "warning";
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+  
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+    type: "warning",
+  });
 
   // Check for stored access key on mount
   useEffect(() => {
@@ -125,60 +154,98 @@ export default function AdminPage() {
   }, [activeTab]);
 
   const handleApprove = async (confessionId: string) => {
-    if (!confirm("Are you sure you want to approve this confession?")) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Approve Confession",
+      message: "Are you sure you want to approve this confession?",
+      type: "info",
+      onConfirm: async () => {
+        try {
+          const response = await fetch("/api/admin/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confessionId }),
+          });
 
-    try {
-      const response = await fetch("/api/admin/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confessionId }),
-      });
-
-      if (response.ok) {
-        alert("Confession approved and broadcasted!");
-        fetchPending();
-        if (activeTab === "all") {
-          fetchAll(page);
+          if (response.ok) {
+            setDialog({
+              isOpen: true,
+              type: "success",
+              title: "Success",
+              message: "Confession approved and broadcasted!",
+            });
+            fetchPending();
+            if (activeTab === "all") {
+              fetchAll(page);
+            }
+          } else {
+            const data = await response.json();
+            setDialog({
+              isOpen: true,
+              type: "error",
+              title: "Error",
+              message: data.error || "Failed to approve confession",
+            });
+          }
+        } catch (error) {
+          console.error("Error approving confession:", error);
+          setDialog({
+            isOpen: true,
+            type: "error",
+            title: "Error",
+            message: "Failed to approve confession",
+          });
         }
-      } else {
-        const data = await response.json();
-        alert(`Error: ${data.error}`);
-      }
-    } catch (error) {
-      console.error("Error approving confession:", error);
-      alert("Failed to approve confession");
-    }
+      },
+    });
   };
 
   const handleDelete = async (confessionId: string) => {
-    if (!confirm("Are you sure you want to delete this confession? This action cannot be undone.")) {
-      return;
-    }
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Confession",
+      message: "Are you sure you want to delete this confession? This action cannot be undone.",
+      type: "danger",
+      onConfirm: async () => {
+        try {
+          const response = await fetch("/api/admin/confessions", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ confessionId }),
+          });
 
-    try {
-      const response = await fetch("/api/admin/confessions", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confessionId }),
-      });
-
-      if (response.ok) {
-        alert("Confession deleted successfully!");
-        if (activeTab === "pending") {
-          fetchPending();
-        } else {
-          fetchAll(page);
+          if (response.ok) {
+            setDialog({
+              isOpen: true,
+              type: "success",
+              title: "Success",
+              message: "Confession deleted successfully!",
+            });
+            if (activeTab === "pending") {
+              fetchPending();
+            } else {
+              fetchAll(page);
+            }
+          } else {
+            const data = await response.json();
+            setDialog({
+              isOpen: true,
+              type: "error",
+              title: "Error",
+              message: data.error || "Failed to delete confession",
+            });
+          }
+        } catch (error) {
+          console.error("Error deleting confession:", error);
+          setDialog({
+            isOpen: true,
+            type: "error",
+            title: "Error",
+            message: "Failed to delete confession",
+          });
         }
-      } else {
-        const data = await response.json();
-        alert(`Error: ${data.error}`);
-      }
-    } catch (error) {
-      console.error("Error deleting confession:", error);
-      alert("Failed to delete confession");
-    }
+      },
+    });
   };
 
   const getSentimentEmoji = (sentiment: number | null) => {
@@ -352,11 +419,7 @@ export default function AdminPage() {
                 {allConfessions.map((confession) => (
                   <div
                     key={confession.id}
-                    className={`p-6 rounded-lg shadow hover:shadow-md transition-shadow ${
-                      confession.isDeleted
-                        ? "bg-zinc-100 dark:bg-zinc-800 opacity-60"
-                        : "bg-white dark:bg-zinc-900"
-                    }`}
+                    className="p-6 bg-white dark:bg-zinc-900 rounded-lg shadow hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -377,11 +440,6 @@ export default function AdminPage() {
                               Pending
                             </span>
                           )}
-                          {confession.isDeleted && (
-                            <span className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900 rounded text-red-800 dark:text-red-200">
-                              Deleted
-                            </span>
-                          )}
                         </div>
                         <p className="text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap mb-2">
                           {confession.content}
@@ -393,24 +451,22 @@ export default function AdminPage() {
                         </div>
                       </div>
                     </div>
-                    {!confession.isDeleted && (
-                      <div className="flex gap-2">
-                        {confession.isPending && (
-                          <button
-                            onClick={() => handleApprove(confession.id)}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                          >
-                            Approve
-                          </button>
-                        )}
+                    <div className="flex gap-2">
+                      {confession.isPending && (
                         <button
-                          onClick={() => handleDelete(confession.id)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                          onClick={() => handleApprove(confession.id)}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
                         >
-                          Delete
+                          Approve
                         </button>
-                      </div>
-                    )}
+                      )}
+                      <button
+                        onClick={() => handleDelete(confession.id)}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
 
@@ -441,6 +497,26 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Dialog Components */}
+      <Dialog
+        isOpen={dialog.isOpen}
+        onClose={() => setDialog({ ...dialog, isOpen: false })}
+        title={dialog.title}
+        message={dialog.message}
+        type={dialog.type}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        type={confirmDialog.type}
+        confirmText="Confirm"
+        cancelText="Cancel"
+      />
     </div>
   );
 }

@@ -6,6 +6,9 @@ export async function GET() {
     const pendingConfessions = await prisma.moderationQueue.findMany({
       where: {
         reviewed: false,
+        Confession: {
+          isDeleted: false, // Exclude deleted confessions from pending queue
+        },
       },
       include: {
         Confession: {

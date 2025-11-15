@@ -4,6 +4,7 @@ import Sentiment from "sentiment";
 import * as leoProfanity from "leo-profanity";
 import { cookies } from "next/headers";
 import { eventBroadcaster } from "@/lib/sse-events";
+import { confessionRateLimiter } from "@/lib/rate-limiter";
 
 const sentiment = new Sentiment();
 
@@ -12,6 +13,55 @@ leoProfanity.loadDictionary("en");
 
 export async function POST(req: Request) {
   try {
+    // Get or create sessionId from cookie (needed for rate limiting)
+    const cookieStore = await cookies();
+    let sessionId = cookieStore.get("sessionId")?.value;
+
+    if (!sessionId) {
+      sessionId = nanoid(12);
+      // Set cookie for future requests (expires in 1 year)
+      cookieStore.set("sessionId", sessionId, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365, // 1 year
+      });
+    }
+
+    // Check rate limit BEFORE processing
+    const rateLimitCheck = confessionRateLimiter.check(sessionId);
+
+    if (!rateLimitCheck.allowed) {
+      const resetDate = new Date(rateLimitCheck.resetTime);
+      const minutesUntilReset = Math.ceil(
+        (rateLimitCheck.resetTime - Date.now()) / (1000 * 60)
+      );
+
+      return Response.json(
+        {
+          error: "Rate limit exceeded",
+          message: `You have reached the maximum number of confessions allowed. Please try again in ${minutesUntilReset} minute${
+            minutesUntilReset !== 1 ? "s" : ""
+          }.`,
+          rateLimit: {
+            limit: 5,
+            remaining: 0,
+            resetTime: resetDate.toISOString(),
+            resetInMinutes: minutesUntilReset,
+          },
+        },
+        {
+          status: 429, // Too Many Requests
+          headers: {
+            "X-RateLimit-Limit": "5",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": rateLimitCheck.resetTime.toString(),
+            "Retry-After": minutesUntilReset.toString(),
+          },
+        }
+      );
+    }
+
     // 1) Receive post content
     const { content, category } = await req.json();
 
@@ -32,23 +82,8 @@ export async function POST(req: Request) {
       Math.min(1, sentimentResult.score / 10)
     ); // normalize to -1 to +1
 
-    // 4) Generate anonId and sessionId
+    // 4) Generate anonId
     const anonId = `anon_${nanoid(6)}`;
-
-    // Get or create sessionId from cookie
-    const cookieStore = await cookies();
-    let sessionId = cookieStore.get("sessionId")?.value;
-
-    if (!sessionId) {
-      sessionId = nanoid(12);
-      // Set cookie for future requests (expires in 1 year)
-      cookieStore.set("sessionId", sessionId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 365, // 1 year
-      });
-    }
 
     // 5) Save post with moderationStatus: pending (or approved if auto-accept rules pass)
     const isApproved = !isProfane; // Auto-approve if no profanity
@@ -124,7 +159,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Return response
+    // Return response with rate limit info
     const response = Response.json(
       {
         message: "Post submitted successfully",
@@ -134,8 +169,20 @@ export async function POST(req: Request) {
         },
         sessionId,
         moderationStatus: isApproved ? "approved" : "pending",
+        rateLimit: {
+          remaining: rateLimitCheck.remaining,
+          limit: 5,
+          resetTime: new Date(rateLimitCheck.resetTime).toISOString(),
+        },
       },
-      { status: 201 }
+      {
+        status: 201,
+        headers: {
+          "X-RateLimit-Limit": "5",
+          "X-RateLimit-Remaining": rateLimitCheck.remaining.toString(),
+          "X-RateLimit-Reset": rateLimitCheck.resetTime.toString(),
+        },
+      }
     );
 
     return response;

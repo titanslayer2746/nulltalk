@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import ConfessionCard from "./ConfessionCard";
+import Link from "next/link";
 
 type Confession = {
   id: string;
@@ -272,18 +273,40 @@ export default function ConfessionTest() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+      {/* Navigation */}
+      <nav className="sticky top-0 z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">N</span>
+              </div>
+              <span className="text-xl font-bold text-zinc-900 dark:text-zinc-50">NullTalk</span>
+            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/"
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                Home
+              </Link>
+              <Link
+                href="/trending"
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                Trending
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-4xl mx-auto p-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-black dark:text-zinc-50">
             Confession Feed
           </h1>
-          <a
-            href="/trending"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
-          >
-            View Trending →
-          </a>
         </div>
 
         {/* Connection Status */}

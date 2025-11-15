@@ -17,7 +17,7 @@ function trendingScore(
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const limit = parseInt(searchParams.get("limit") || "10");
     const category = searchParams.get("category") || undefined;
 
     // Fetch confessions

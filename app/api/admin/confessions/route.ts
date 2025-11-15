@@ -10,6 +10,9 @@ export async function GET(req: Request) {
 
     const [confessions, total] = await Promise.all([
       prisma.confession.findMany({
+        where: {
+          isDeleted: false, // Exclude deleted confessions
+        },
         skip,
         take: limit,
         include: {
@@ -21,7 +24,11 @@ export async function GET(req: Request) {
           createdAt: "desc",
         },
       }),
-      prisma.confession.count(),
+      prisma.confession.count({
+        where: {
+          isDeleted: false, // Count only non-deleted confessions
+        },
+      }),
     ]);
 
     return Response.json({
