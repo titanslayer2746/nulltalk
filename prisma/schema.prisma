@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String        @id @default(cuid())
+  alias          String        @unique
+  createdAt      DateTime      @default(now())
+  confessions    Confession[]
+  votes          Vote[]
+}
+
+enum Category {
+  LOVE_RELATIONSHIPS
+  FAMILY_FRIENDS
+  WORK_SCHOOL
+  SECRETS_LIES
+  REGRETS_MISTAKES
+  DREAMS_ASPIRATIONS
+  FEARS_ANXIETIES
+  GUILT_SHAME
+  ANGER_FRUSTRATION
+  GRATITUDE_THANKS
+  CONFUSION_DOUBT
+  LONELINESS_ISOLATION
+  SUCCESS_ACHIEVEMENT
+  FAILURE_DISAPPOINTMENT
+  OTHER
+}
+
+model Confession {
+  id             String        @id @default(cuid())
+  content        String
+  category       Category?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  votes          Vote[]
+  sentiment      Float?        // range -1 (negative) → +1 (positive)
+  upvotes        Int           @default(0)
+  downvotes      Int           @default(0)
+  isRevealed     Boolean       @default(false)
+  revealVotes    Int           @default(10) // Threshold for reveal
+  isDeleted      Boolean       @default(false)
+  deleteAfter    DateTime?     // For auto-expiry
+  authorId       String?
+  author         User?         @relation(fields: [authorId], references: [id])
+  flags          String[]
+  moderation     ModerationQueue?
+  reveals        Reveal[]
+}
+
+model Vote {
+  id             String        @id @default(cuid())
+  userId         String
+  confessionId   String
+  value          Int           // +1 or -1
+  createdAt      DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id])
+  confession     Confession    @relation(fields: [confessionId], references: [id])
+
+  @@unique([userId, confessionId]) // Prevent multiple votes from same user
+}
+
+model ModerationQueue {
+  id             String        @id @default(cuid())
+  confessionId   String        @unique
+  reason         String?
+  reviewed       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  confession     Confession    @relation(fields: [confessionId], references: [id])
+}
+
+model Reveal {
+  id             String        @id @default(cuid())
+  confessionId   String
+  revealedAt     DateTime?     @default(now())
+  triggeredById  String?
+  confession     Confession    @relation(fields: [confessionId], references: [id])
+}
